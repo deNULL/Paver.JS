@@ -1,4 +1,6 @@
 window.Paver = function(dataSource, width, options) {
+  options = options || {};
+
   var layout = {
     dataSource: dataSource,
     width: width,
@@ -14,6 +16,8 @@ window.Paver = function(dataSource, width, options) {
       var maxRowHeight = this.options.maxRowHeight || 180;
       var minStackWidth = this.options.minStackWidth || 100;
       var minTileHeight = this.options.minTileHeight || 70;
+      var maxRatio = this.options.maxRatio || 4;
+      var minRatio = this.options.minRatio || 0.333;
       var margin = this.options.margin || 2;
 
       if (fromRow === undefined) {
@@ -36,7 +40,7 @@ window.Paver = function(dataSource, width, options) {
         range: { from: from }
       }, stack = {
         h1000: 0,
-        mh1000: 0,
+        mh1000: 1000000,
         tiles: [],
         range: { from: from }
       };
@@ -48,7 +52,7 @@ window.Paver = function(dataSource, width, options) {
           var stack = row.stacks[j];
           stack.height = 0;
           stack.width = Math.round(1000 * (row.height - (stack.tiles.length - 1) * margin) / stack.h1000);
-          if (j == row.stacks.length - 1) {
+          if (i < count - 1 && j == row.stacks.length - 1) {
             stack.width = rowWidth - row.width;
             row.width = rowWidth;
           } else {
@@ -57,8 +61,9 @@ window.Paver = function(dataSource, width, options) {
 
           for (var k = 0; k < stack.tiles.length; k++) {
             var tile = stack.tiles[k];
+            var ratio = Math.max(Math.min(tile.data.width / tile.data.height, maxRatio), minRatio);
             tile.width = stack.width;
-            tile.height = Math.round(tile.data.height * stack.width / tile.data.width);
+            tile.height = Math.round(stack.width / ratio);
             if (k == stack.tiles.length - 1) {
               tile.height = row.height - stack.height;
               stack.height = row.height;
@@ -66,6 +71,9 @@ window.Paver = function(dataSource, width, options) {
               stack.height += tile.height + margin;
             }
           }
+
+          delete stack.h1000;
+          delete stack.mh1000;
         }
 
         delete row.w1000;
@@ -89,26 +97,19 @@ window.Paver = function(dataSource, width, options) {
           }
         }
 
-        var h1000 = 1000 * size.height / size.width;
+        var ratio = Math.max(Math.min(data.width / data.height, maxRatio), minRatio);
+
+        var h1000 = 1000 / ratio;
         var sh1000 = stack.h1000 + h1000;
         var mh1000 = Math.min(stack.mh1000, h1000);
 
         if (stack.tiles.length > 0 && ((1000 * maxRowHeight / sh1000 < minStackWidth) || (mh1000 * maxRowHeight / sh1000 < minTileHeight))) {
           row.w1000 += 1000000 / stack.h1000;
 
-          delete stack.h1000;
-          delete stack.mh1000;
           stack.range.to = i - 1;
           stack.range.len = stack.range.to - stack.range.from + 1;
 
           row.stacks.push(stack);
-
-          stack = {
-            h1000: 0,
-            mh1000: 0,
-            tiles: [],
-            range: { from: i }
-          }
 
           row.height = Math.round(1000 * (rowWidth - (row.stacks.length - 1) * margin) / row.w1000);
           if (row.height < maxRowHeight) {
@@ -120,10 +121,17 @@ window.Paver = function(dataSource, width, options) {
               range: { from: i + 1 }
             }
           }
+
+          stack = {
+            h1000: 0,
+            mh1000: 1000000,
+            tiles: [],
+            range: { from: i }
+          }
         }
 
-        stack.h1000 += data.height * 1000 / data.width;
-        stack.mh1000 = Math.min(stack.mh1000, data.height * 1000 / data.width);
+        stack.h1000 += 1000 / ratio;
+        stack.mh1000 = Math.min(stack.mh1000, 1000 / ratio);
         stack.tiles.push({
           data: data,
           index: i,
@@ -131,6 +139,7 @@ window.Paver = function(dataSource, width, options) {
       }
 
       if (row.stacks.length > 0) {
+        row.height = Math.min(row.height, maxRowHeight);
         addRow(row, count - 1);
       }
 
@@ -145,7 +154,9 @@ window.Paver = function(dataSource, width, options) {
     var e = element || document.createElement('div');
 
     for (var i = 0; i < this.rows.length; i++) {
-      e.appendChild(this.rows[i].element || this.renderRow(this.rows[i], { row: i }));
+      var child = this.rows[i].element || this.renderRow(this.rows[i], { row: i });
+      child.style.marginBottom = (i < this.rows.length - 1) ? (this.options.margin || 2) + 'px' : '0';
+      e.appendChild(child);
     }
 
     return e;
@@ -153,13 +164,13 @@ window.Paver = function(dataSource, width, options) {
   layout.renderRow = options.renderRow || function(row, path) {
     var e = row.element = document.createElement('div');
 
-    e.style.clear = 'both';
-
     e.style.width = row.width + 'px';
     e.style.height = row.height + 'px';
 
     for (var i = 0; i < row.stacks.length; i++) {
-      e.appendChild(row.stacks[i].element || this.renderStack(row.stacks[i], { row: path.row, stack: i }));
+      var child = row.stacks[i].element || this.renderStack(row.stacks[i], { row: path.row, stack: i });
+      child.style.marginRight = (i < row.stacks.length - 1) ? (this.options.margin || 2) + 'px' : '0';
+      e.appendChild(child);
     }
 
     return e;
@@ -173,7 +184,9 @@ window.Paver = function(dataSource, width, options) {
     e.style.height = stack.height + 'px';
 
     for (var i = 0; i < stack.tiles.length; i++) {
-      e.appendChild(stack.tiles[i].element || this.renderTile(stack.tiles[i], { row: path.row, stack: path.stack, tile: i }));
+      var child = stack.tiles[i].element || this.renderTile(stack.tiles[i], { row: path.row, stack: path.stack, tile: i });
+      child.style.marginBottom = (i < stack.tiles.length - 1) ? (this.options.margin || 2) + 'px' : '0';
+      e.appendChild(child);
     }
 
     return e;
@@ -183,8 +196,6 @@ window.Paver = function(dataSource, width, options) {
 
     e.style.width = tile.width + 'px';
     e.style.height = tile.height + 'px';
-
-    e.style.marginRight = e.style.marginBottom = this.options.margin || 2;
 
     e.style.backgroundImage = 'url(' + tile.data.src + ')';
     e.style.backgroundSize = 'cover';
