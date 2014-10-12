@@ -22,7 +22,7 @@ window.Paver = function(dataSource, width, options) {
     rows: [],
 
     build: function(fromRow) {
-      console.time('build');
+      //console.time('build');
       var rows = this.rows;
       var count = this.dataSource && (this.dataSource.count ? this.dataSource.count() : this.dataSource.length) || 0;
       var last = (rows.length > 0) ? rows[rows.length - 1].range.to : 0;
@@ -123,7 +123,7 @@ window.Paver = function(dataSource, width, options) {
         return score / row.range.len;
       }
 
-      console.groupCollapsed('row #' + rows.length);
+      //console.groupCollapsed('row #' + rows.length);
       for (var i = from; i < count; i++) {
         var data = this.dataSource && (this.dataSource.get ? this.dataSource.get(i) : this.dataSource[i]) || false;
         var ratio;
@@ -169,16 +169,16 @@ window.Paver = function(dataSource, width, options) {
               rows.push(row);
             } else {
               var score = compute(row, i);
-              console.log('count = ' + row.range.len + ', h = ' + rowHeight + ', stddev = ' + Math.sqrt(score));
+              //console.log('count = ' + row.range.len + ', h = ' + rowHeight + ', stddev = ' + Math.sqrt(score));
               if (!best || (score < bestScore)) {
                 best = row, bestScore = score;
               }
 
               step++;
               if (step >= optimizeSteps) {
-                console.groupEnd();
+                //console.groupEnd();
                 rows.push(best);
-                console.groupCollapsed('row #' + rows.length);
+                //console.groupCollapsed('row #' + rows.length);
                 i = best.range.to;
 
                 totalScore += score;
@@ -212,7 +212,7 @@ window.Paver = function(dataSource, width, options) {
           index: i,
         });
       }
-      console.groupEnd();
+      //console.groupEnd();
 
       if (row.stacks.length > 0) {
         row.height = Math.min(row.height, maxRowHeight);
@@ -220,9 +220,9 @@ window.Paver = function(dataSource, width, options) {
         rows.push(row);
       }
 
-      console.log('total score (stddev from ' + preferredArea + '): ' + Math.sqrt(totalScore / rows.length));
+      //console.log('total score (stddev from ' + preferredArea + '): ' + Math.sqrt(totalScore / rows.length));
 
-    console.timeEnd('build');
+    //console.timeEnd('build');
       return this;
     },
     rebuild: function() {
@@ -233,17 +233,17 @@ window.Paver = function(dataSource, width, options) {
   layout.render = options.render || function(element) {
     var e = element || document.createElement('div');
 
-    console.time('render');
+    //console.time('render');
 
     e.style.position = 'relative';
 
-    console.time('check');
+    //console.time('check');
     var node = e.firstChild;
     while (node) {
       node.paverDelete = true;
       node = node.nextSibling;
     }
-    console.timeEnd('check');
+    //console.timeEnd('check');
 
     var childs = [];
 
@@ -277,7 +277,7 @@ window.Paver = function(dataSource, width, options) {
       rowTop += row.height + this.margin;
     }
 
-    console.time('check');
+    //console.time('check');
     var node = e.firstChild;
     while (node) {
       var next = node.nextSibling;
@@ -287,13 +287,13 @@ window.Paver = function(dataSource, width, options) {
       delete node.paverDelete;
       node = next;
     }
-    console.timeEnd('check');
+    //console.timeEnd('check');
 
     for (var i = 0; i < childs.length; i++) {
       e.appendChild(childs[i]);
     }
 
-    console.timeEnd('render');
+    //console.timeEnd('render');
 
     return e;
   }
