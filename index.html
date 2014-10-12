@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>Paver.JS</title>
+
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+  <link rel="stylesheet" href="css/bootstrap-lumen.css">
+  <style>
+    .tile {
+      overflow: hidden;
+    }
+    .tile img {
+      position: absolute;
+    }
+
+    .config {
+      font-family: Consolas, "Andale Mono", "Lucida Console", Monaco, monospace;
+      text-align: left;
+      width: 700px;
+      margin: 20px auto;
+      color: #DDD;
+    }
+
+    .config .line {
+      clear: both;
+    }
+
+    .config .line>div {
+      float: left;
+    }
+
+    .config .line .field {
+      width: 120px;
+      margin-left: 17px;
+    }
+
+    .config .line input[type=text] {
+      float: left;
+      border: 1px dotted #777;
+      background: rgba(0, 0, 0, 0);
+      padding: 2px 2px 0px;
+      margin-top: -2px;
+      margin-bottom: 4px;
+      width: 100px;
+      height: 21px;
+      color: #AE81FF;
+    }
+
+    .config .slider {
+      width: 300px;
+      height: 1px;
+      background: #AE81FF;
+      margin: 8px 40px;
+      position: relative;
+    }
+
+    .config .slider .thumb {
+      position: absolute;
+      top: -5px;
+      left: 0%;
+      margin-left: -12px;
+      padding: 1px 8px;
+      border: 1px solid #AE81FF;
+      background: #000;
+      cursor: pointer;
+    }
+
+    .config .slider .thumb div {
+      width: 7px;
+      height: 7px;
+      background: #AE81FF;
+      background-clip: content-box;
+      padding: 1px 2px;
+      border: 1px solid #AE81FF;
+      border-width: 0 1px;
+    }
+
+    .config .line label {
+      float: left;
+      width: 100px;
+      color: #AE81FF;
+      position: relative;
+      padding-left: 3px;
+      cursor: pointer;
+    }
+
+    .config .line label input {
+      position: absolute;
+      left: -16px;
+      top: -1px;
+    }
+  </style>
+
+  <!--[if lt IE 9]>
+      <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+      <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+  </head>
+  <body style="text-align: center; margin: 0; padding-top: 2px; background: #000" onresize="if (photos) $('#photos').html(update(photos));">
+  <h2>Paver.JS</h2>
+  <p>A tile layout JavaScript library.</p>
+
+  <div class="config">
+    <label><input id="usePreferredArea" type="checkbox" onchange="update();"/> Area-based algorithm (slower)</label>
+    <div class="line">Paver(dataSource, width, {</div>
+<script>
+  var params = [
+    { name: 'preferredArea', min: 20*20, max: 600*600, def: 160*160, area: [false, true] },
+    { name: 'optimizeSteps', min: 1, max: 10, def: 3, area: [false, true] },
+    { name: 'minRowHeight', min: 20, max: 600, def: 100, area: [false, true] },
+    { name: 'maxRowHeight', min: 20, max: 600, def: 220, area: [true, true] },
+    { name: 'minStackWidth', min: 20, max: 600, def: 100, area: [false, true] },
+    { name: 'minTileHeight', min: 20, max: 600, def: 70, area: [false, true] },
+    { name: 'minRatio', min: 0.1, max: 5, def: 0.33, area: [true, true], decimal: 2 },
+    { name: 'maxRatio', min: 0.1, max: 5, def: 4, area: [true, true], decimal: 2 },
+    { name: 'margin', min: 0, max: 20, def: 2, area: [true, true] },
+    { name: 'noStacks', bool: true, def: false, area: [true, true] },
+  ];
+  function slideStart(i, handle) {
+
+    document.onmousemove = function(e) {
+      var x = e.clientX - handle.parentNode.getBoundingClientRect().left;
+      var v = params[i].min + (params[i].max - params[i].min) * Math.max(Math.min(x / 300, 1), 0);
+      document.getElementById('param' + i).value = params[i].decimal ? +v.toFixed(params[i].decimal) : Math.round(v);
+      update();
+      //e.stopPropagation();
+      //e.preventDefault();
+      return false;
+    }
+    handle.onmouseup = document.onmouseup = function() {
+      document.onmousemove = null;
+      document.onmouseup = handle.onmouseup = null;
+    }
+  }
+
+  var photos;
+  var cache = {};
+  function update() {
+    var opts = {
+      renderTile: function(tile, path) {
+        var e = cache['tile' + tile.index], img;
+        if (!e) {
+          e = cache['tile' + tile.index] = document.createElement('div');
+          e.className = 'tile';
+
+          img = cache['img' + tile.index] = document.createElement('img');
+          img.src = tile.data.photo_604;
+          e.appendChild(img);
+        } else {
+          img = cache['img' + tile.index];
+        }
+
+
+        var r = Math.min(tile.data.width / tile.width, tile.data.height / tile.height);
+        var w = Math.ceil(tile.data.width / r);
+        var h = Math.ceil(tile.data.height / r);
+
+        img.style.top = ((tile.height - h) >> 1) + 'px';
+        img.style.left = ((tile.width - w) >> 1) + 'px';
+        img.style.width = w + 'px';
+        img.style.height = h + 'px';
+        img.title = tile.data.likes.count + ' likes';
+
+        return e;
+      }
+    };
+    var area = document.getElementById('usePreferredArea').checked;
+    for (var i = 0; i < params.length; i++) {
+      var v;
+      if (params[i].bool) {
+        v = document.getElementById('param' + i).checked;
+        document.getElementById('label' + i).innerHTML = v;
+      } else {
+        v = +document.getElementById('param' + i).value;
+        var perc = Math.max(Math.min(100 * (v - params[i].min) / (params[i].max - params[i].min), 100), 0);
+        document.getElementById('thumb' + i).style.left = perc + '%';
+      }
+      document.getElementById('line' + i).style.display = params[i].area[+area] ? 'block' : 'none';
+
+      if (params[i].area[+area]) {
+        opts[params[i].name] = v;
+      }
+    }
+
+    var w = Math.round(document.body.clientWidth * 0.8) - 4;
+
+    if (photos) {
+      if (!document.getElementById('useCache').checked) {
+        cache = {};
+      }
+      var usingCache = Object.getOwnPropertyNames(cache).length > 0;
+
+      var st = new Date();
+      Paver(photos, w, opts).render($('#photos').get(0));
+      $('#count').html(' (' + photos.length + ' photos)');
+      $('#time').html((new Date()).getTime() - st.getTime() + 'ms' + (usingCache ? ' (using cache)' : ' (without cache)'));
+    }
+
+    $('#photos').width(w);
+  }
+  for (var i = 0; i < params.length; i++) {
+    document.write('<div class="line" id="line' + i + '" style="display: ' + (params[i].area[0] ? 'block' : 'none') + '"><div class="field">' + params[i].name + ':</div>');
+    if (params[i].bool) {
+      document.write('<label><input id="param' + i + '" type="checkbox" onchange="update();"/> <span id="label' + i + '">' + params[i].def + '</span></label><div>,</div>');
+    } else {
+      var perc = 100 * (params[i].def - params[i].min) / (params[i].max - params[i].min);
+      document.write('<input id="param' + i + '" type="text" value="' + params[i].def + '" onkeyup="update();"/><div>,</div><div class="slider"><div id="thumb' + i + '" class="thumb" style="left: ' + perc + '%" onmousedown="slideStart(' + i + ', this);"><div></div></div></div>');
+    }
+    document.write('</div>');
+  }
+</script>
+    <div class="line"><div class="field">renderTile:</div>function(tile, path) { ... }</div>
+    <div class="line">});</div>
+
+    <label style="margin-top: 10px"><input id="useCache" type="checkbox" onchange="update();" checked="checked"/> Use cache (faster)</label>
+    <div>Update time<span id="count"></span>: <span id="time"></span></div>
+  </div>
+
+    <img id="loading" src="loading.gif" style="display: none; margin-top: 150px"/>
+    <div id="photos" style="display: none; <?=($_REQUEST['api_id'] ? '' : 'width: 80%; ');?>margin: 0 auto;">
+
+    </div>
+
+    <script src="//code.jquery.com/jquery-2.1.0.min.js"></script>
+   <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+    <script src="paver.js"></script>
+    <script src="demo-photos.js"></script>
+    <script>
+      $('#loading').toggle(false);
+      $('#photos').toggle(true);
+      update();
+    </script>
+  </body>
+</html>

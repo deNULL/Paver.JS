@@ -1,24 +1,55 @@
 window.Paver = function(dataSource, width, options) {
+  "use strict";
+
   options = options || {};
 
   var layout = {
     dataSource: dataSource,
     width: width,
-    options: options,
+
+    preferredArea: options.preferredArea,
+    optimizeSteps: options.optimizeSteps || 3,
+    getPreferredArea: options.getPreferredArea,
+    minRowHeight: options.minRowHeight || (options.preferredArea ? Math.sqrt(options.preferredArea / 2) : 0),
+    maxRowHeight: options.maxRowHeight || (options.preferredArea ? Math.sqrt(options.preferredArea * 2) : 180),
+    minStackWidth: options.minStackWidth || (options.preferredArea ? Math.sqrt(options.preferredArea / 2) : 100),
+    minTileHeight: options.minTileHeight || (options.preferredArea ? Math.sqrt(options.preferredArea * 2) / 3 : 70),
+    maxRatio: options.maxRatio || 4,
+    minRatio: options.minRatio || 0.333,
+    margin: options.margin || 2,
+    noStacks: options.noStacks,
+
     rows: [],
 
     build: function(fromRow) {
+      console.time('build');
       var rows = this.rows;
       var count = this.dataSource && (this.dataSource.count ? this.dataSource.count() : this.dataSource.length) || 0;
       var last = (rows.length > 0) ? rows[rows.length - 1].range.to : 0;
 
       var rowWidth = this.width;
-      var maxRowHeight = this.options.maxRowHeight || 180;
-      var minStackWidth = this.options.minStackWidth || 100;
-      var minTileHeight = this.options.minTileHeight || 70;
-      var maxRatio = this.options.maxRatio || 4;
-      var minRatio = this.options.minRatio || 0.333;
-      var margin = this.options.margin || 2;
+      var preferredArea = this.preferredArea;
+      var minRowHeight, maxRowHeight,
+        minStackWidth, minTileHeight,
+        optimizeSteps, getPreferredArea;
+
+      if (preferredArea) {
+        optimizeSteps = Math.max(3, this.optimizeSteps || 3);
+        getPreferredArea = this.getPreferredArea;
+        minRowHeight = this.minRowHeight || Math.sqrt(preferredArea / 2);
+        maxRowHeight = this.maxRowHeight || Math.sqrt(preferredArea * 2);
+        minStackWidth = this.minStackWidth || Math.sqrt(preferredArea / 2);
+        minTileHeight = this.minTileHeight || (Math.sqrt(preferredArea * 2) / 3);
+      } else {
+        maxRowHeight = this.maxRowHeight || 180;
+        minStackWidth = this.minStackWidth || 100;
+        minTileHeight = this.minTileHeight || 70;
+      }
+
+      var maxRatio = this.maxRatio || 4;
+      var minRatio = this.minRatio || 0.333;
+      var margin = this.margin || 2;
+      var noStacks = this.noStacks;
 
       if (fromRow === undefined) {
         if (last == count - 1) {
@@ -45,7 +76,11 @@ window.Paver = function(dataSource, width, options) {
         range: { from: from }
       };
 
-      function addRow(row, i) {
+      var best = false, bestScore, step = 0, totalScore = 0;
+
+      function compute(row, i) {
+        var score = 0;
+
         row.width = 0;
 
         for (var j = 0; j < row.stacks.length; j++) {
@@ -70,6 +105,11 @@ window.Paver = function(dataSource, width, options) {
             } else {
               stack.height += tile.height + margin;
             }
+
+            if (preferredArea) {
+              var diff = (tile.width * tile.height - (getPreferredArea ? getPreferredArea(tile.data, tile.index) || preferredArea : preferredArea));
+              score += diff * diff;
+            }
           }
 
           delete stack.h1000;
@@ -77,33 +117,44 @@ window.Paver = function(dataSource, width, options) {
         }
 
         delete row.w1000;
+
         row.range.to = i;
         row.range.len = row.range.to - row.range.from + 1;
-
-        rows.push(row);
+        return score / row.range.len;
       }
 
+      console.groupCollapsed('row #' + rows.length);
       for (var i = from; i < count; i++) {
         var data = this.dataSource && (this.dataSource.get ? this.dataSource.get(i) : this.dataSource[i]) || false;
-        if (!data || !data.width || !data.height) {
-          // No size available
-          if (this.options.defaultSize) {
-            data = data || {};
-            data.width = this.options.defaultSize.width;
-            data.height = this.options.defaultSize.height;
-          } else {
-            // Stop
-            break;
+        var ratio;
+
+        if (this.getRatio) {
+          ratio = this.getRatio(data, i);
+        } else {
+          if (!data || !data.width || !data.height) {
+            // No size available
+            if (this.defaultSize) {
+              data = data || {};
+              data.width = this.defaultSize.width;
+              data.height = this.defaultSize.height;
+            } else {
+              // Stop
+              break;
+            }
           }
+
+          ratio = data.width / data.height;
         }
 
-        var ratio = Math.max(Math.min(data.width / data.height, maxRatio), minRatio);
+        ratio = Math.max(Math.min(ratio, maxRatio), minRatio);
 
         var h1000 = 1000 / ratio;
         var sh1000 = stack.h1000 + h1000;
         var mh1000 = Math.min(stack.mh1000, h1000);
 
-        if (stack.tiles.length > 0 && ((1000 * maxRowHeight / sh1000 < minStackWidth) || (mh1000 * maxRowHeight / sh1000 < minTileHeight))) {
+        var rowHeight = preferredArea ? minRowHeight + step * (maxRowHeight - minRowHeight) / (optimizeSteps - 1) : maxRowHeight;
+
+        if (stack.tiles.length > 0 && (noStacks || (1000 * rowHeight / sh1000 < minStackWidth) || (mh1000 * rowHeight / sh1000 < minTileHeight))) {
           row.w1000 += 1000000 / stack.h1000;
 
           stack.range.to = i - 1;
@@ -112,13 +163,37 @@ window.Paver = function(dataSource, width, options) {
           row.stacks.push(stack);
 
           row.height = Math.round(1000 * (rowWidth - (row.stacks.length - 1) * margin) / row.w1000);
-          if (row.height < maxRowHeight) {
-            addRow(row, i);
+          if (row.height <= rowHeight) {
+            if (!preferredArea) {
+              compute(row, i);
+              rows.push(row);
+            } else {
+              var score = compute(row, i);
+              console.log('count = ' + row.range.len + ', h = ' + rowHeight + ', stddev = ' + Math.sqrt(score));
+              if (!best || (score < bestScore)) {
+                best = row, bestScore = score;
+              }
+
+              step++;
+              if (step >= optimizeSteps) {
+                console.groupEnd();
+                rows.push(best);
+                console.groupCollapsed('row #' + rows.length);
+                i = best.range.to;
+
+                totalScore += score;
+
+                best = false, bestScore = 1000000;
+                step = 0;
+              } else {
+                i = row.range.from;
+              }
+            }
 
             row = {
               w1000: 0,
               stacks: [],
-              range: { from: i + 1 }
+              range: { from: i }
             }
           }
 
@@ -137,12 +212,17 @@ window.Paver = function(dataSource, width, options) {
           index: i,
         });
       }
+      console.groupEnd();
 
       if (row.stacks.length > 0) {
         row.height = Math.min(row.height, maxRowHeight);
-        addRow(row, count - 1);
+        totalScore += compute(row, count - 1);
+        rows.push(row);
       }
 
+      console.log('total score (stddev from ' + preferredArea + '): ' + Math.sqrt(totalScore / rows.length));
+
+    console.timeEnd('build');
       return this;
     },
     rebuild: function() {
@@ -153,41 +233,67 @@ window.Paver = function(dataSource, width, options) {
   layout.render = options.render || function(element) {
     var e = element || document.createElement('div');
 
+    console.time('render');
+
+    e.style.position = 'relative';
+
+    console.time('check');
+    var node = e.firstChild;
+    while (node) {
+      node.paverDelete = true;
+      node = node.nextSibling;
+    }
+    console.timeEnd('check');
+
+    var childs = [];
+
+    var rowTop = 0;
     for (var i = 0; i < this.rows.length; i++) {
-      var child = this.rows[i].element || this.renderRow(this.rows[i], { row: i });
-      child.style.marginBottom = (i < this.rows.length - 1) ? (this.options.margin || 2) + 'px' : '0';
-      e.appendChild(child);
+      var row = this.rows[i];
+      var stackLeft = 0;
+      for (var j = 0; j < row.stacks.length; j++) {
+        var stack = row.stacks[j];
+        var tileTop = 0;
+        for (var k = 0; k < stack.tiles.length; k++) {
+          var tile = stack.tiles[k];
+          var child = tile.element || this.renderTile(tile, { row: i, stack: j, tile: k });
+
+          child.style.position = 'absolute';
+          child.style.top = (rowTop + tileTop) + 'px';
+          child.style.left = stackLeft + 'px';
+          child.style.width = tile.width + 'px';
+          child.style.height = tile.height + 'px';
+
+          if (child.parentNode != e) {
+            childs.push(child);
+          } else {
+            child.paverDelete = false;
+          }
+
+          tileTop += tile.height + this.margin;
+        }
+        stackLeft += stack.width + this.margin;
+      }
+      rowTop += row.height + this.margin;
     }
 
-    return e;
-  }
-  layout.renderRow = options.renderRow || function(row, path) {
-    var e = row.element = document.createElement('div');
+    console.time('check');
+    var node = e.firstChild;
+    while (node) {
+      var next = node.nextSibling;
+      if (node.paverDelete) {
+        e.removeChild(node);
+      }
+      delete node.paverDelete;
+      node = next;
+    }
+    console.timeEnd('check');
 
-    e.style.width = row.width + 'px';
-    e.style.height = row.height + 'px';
-
-    for (var i = 0; i < row.stacks.length; i++) {
-      var child = row.stacks[i].element || this.renderStack(row.stacks[i], { row: path.row, stack: i });
-      child.style.marginRight = (i < row.stacks.length - 1) ? (this.options.margin || 2) + 'px' : '0';
-      e.appendChild(child);
+    for (var i = 0; i < childs.length; i++) {
+      e.appendChild(childs[i]);
     }
 
-    return e;
-  }
-  layout.renderStack = options.renderStack || function(stack, path) {
-    var e = stack.element = document.createElement('div');
-
-    e.style.float = 'left';
-
-    e.style.width = stack.width + 'px';
-    e.style.height = stack.height + 'px';
-
-    for (var i = 0; i < stack.tiles.length; i++) {
-      var child = stack.tiles[i].element || this.renderTile(stack.tiles[i], { row: path.row, stack: path.stack, tile: i });
-      child.style.marginBottom = (i < stack.tiles.length - 1) ? (this.options.margin || 2) + 'px' : '0';
-      e.appendChild(child);
-    }
+    console.timeEnd('render');
 
     return e;
   }
