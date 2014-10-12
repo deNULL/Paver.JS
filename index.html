@@ -91,6 +91,18 @@
       left: -16px;
       top: -1px;
     }
+
+    body {
+      text-align: center;
+      margin: 0;
+      padding-top: 2px;
+      background: #000;
+      color: #eee;
+    }
+
+    h2 {
+      color: #fff;
+    }
   </style>
 
   <!--[if lt IE 9]>
@@ -98,7 +110,7 @@
       <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
     <![endif]-->
   </head>
-  <body style="text-align: center; margin: 0; padding-top: 2px; background: #000" onresize="if (photos) $('#photos').html(update(photos));">
+  <body onresize="if (photos) $('#photos').html(update(photos));">
   <h2>Paver.JS</h2>
   <p>A tile layout JavaScript library.</p>
 
@@ -219,12 +231,10 @@
   </div>
 
     <img id="loading" src="loading.gif" style="display: none; margin-top: 150px"/>
-    <div id="photos" style="display: none; <?=($_REQUEST['api_id'] ? '' : 'width: 80%; ');?>margin: 0 auto;">
-
-    </div>
+    <div id="photos" style="display: none; width: 80%; margin: 0 auto;"></div>
 
     <script src="//code.jquery.com/jquery-2.1.0.min.js"></script>
-   <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+    <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
     <script src="paver.js"></script>
     <script src="demo-photos.js"></script>
     <script>
