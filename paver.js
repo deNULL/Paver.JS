@@ -16,7 +16,7 @@ window.Paver = function(dataSource, width, options) {
     minTileHeight: options.minTileHeight || (options.preferredArea ? Math.sqrt(options.preferredArea * 2) / 3 : 70),
     maxRatio: options.maxRatio || 4,
     minRatio: options.minRatio || 0.333,
-    margin: options.margin || 2,
+    margin: 'margin' in options ? options.margin : 2,
     noStacks: options.noStacks,
 
     rows: [],
